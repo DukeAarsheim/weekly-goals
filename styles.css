@@ -1,11 +1,13 @@
 :root {
   --bg: #f6f5f1; --fg: #1f2a26; --muted: #66726c; --card: #ffffff;
   --accent: #2f6f5e; --accent-fg: #ffffff; --border: #dcdad2; --danger: #b3382c;
+  --progress: #d3ecdf; --complete: #5ccf9b; --complete-edge: #3fb383; --on-complete: #0f2a1f;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #141a18; --fg: #e8ece9; --muted: #9aa8a1; --card: #1d2623;
     --accent: #4aa88e; --accent-fg: #0b1511; --border: #2e3a36; --danger: #e07a6e;
+    --progress: #336a57; --complete: #4cc38a; --complete-edge: #4cc38a; --on-complete: #082015;
   }
 }
 * { box-sizing: border-box; }
@@ -42,20 +44,31 @@ button.danger { color: var(--danger); }
 #progressText { font-size: .875rem; color: var(--muted); white-space: nowrap; }
 
 .goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+/* --fill (set per goal in JS) is how far the lighter-green progress bar reaches across the card. */
 .goal {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: var(--card);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  background: linear-gradient(to right, var(--progress) var(--fill, 0%), var(--card) var(--fill, 0%));
   border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px;
 }
+.goal.tappable { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.goal.done { background: var(--complete); border-color: var(--complete-edge); color: var(--on-complete); }
 /* On narrow screens the controls wrap onto their own line instead of squeezing the text. */
 .goal .main { display: flex; align-items: center; gap: 10px; flex: 1 1 11em; min-width: 0; }
-.goal label.main { cursor: pointer; min-height: 36px; }
+.goal button.main {
+  border: 0; background: none; padding: 0; min-height: 44px; border-radius: 8px;
+  text-align: left; cursor: inherit;
+}
+.goal button.main:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .goal .controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.goal input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
+/* Keep the small buttons readable on top of the green "done" card. */
+.goal .controls button { color: var(--fg); }
+.goal .controls button.danger { color: var(--danger); }
 .goal .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.goal.done .text { text-decoration: line-through; color: var(--muted); }
+.goal.done .text { text-decoration: line-through; }
 .goal .tag { font-size: .75rem; color: var(--muted); }
-.counter { display: flex; align-items: center; gap: 6px; flex: none; }
-.counter .count { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.goal.done .tag { color: inherit; opacity: .7; }
+.goal .count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+button:disabled { opacity: .4; cursor: default; }
 .empty, .hint { color: var(--muted); }
 
 .notes { margin-top: 20px; }

@@ -1,7 +1,7 @@
 import { toISODate, weekKey, addWeeks, weekLabel } from './weeks.js';
 import {
   ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal,
-  increment, decrement, toggle, isDone, progress, cleanText,
+  decrement, tap, fraction, isDone, progress, cleanText,
 } from './goals.js';
 import { load, save, exportJSON, importJSON, STORAGE_KEY, BACKUP_KEY } from './storage.js';
 
@@ -119,18 +119,25 @@ function button(label, ariaLabel, onClick, className = 'small', focusKey = '') {
 }
 
 function goalRow(goal) {
-  const li = el('li', 'goal' + (isDone(goal) ? ' done' : ''));
+  const done = isDone(goal);
+  const li = el('li', 'goal tappable' + (done ? ' done' : ''));
+  li.style.setProperty('--fill', `${Math.round(fraction(goal) * 100)}%`);
   const mapGoal = fn => updateGoals(gs => gs.map(g => (g.id === goal.id ? fn(g) : g)));
 
-  // For a target-1 goal the whole text area is a <label>, so tapping the text toggles the checkbox.
-  const main = el(goal.target === 1 ? 'label' : 'div', 'main');
+  // Tapping anywhere on the card (except its small buttons) counts the goal. The inner button gives keyboard and
+  // screen-reader access; its click bubbles up to this single handler.
+  li.addEventListener('click', e => {
+    if (!e.target.closest('.controls')) mapGoal(tap);
+  });
+
+  const main = el('button', 'main');
+  main.type = 'button';
+  main.dataset.focus = `${goal.id}:tap`;
   if (goal.target === 1) {
-    const cb = el('input');
-    cb.type = 'checkbox';
-    cb.checked = isDone(goal);
-    cb.dataset.focus = `${goal.id}:check`;
-    cb.addEventListener('change', () => mapGoal(toggle));
-    main.append(cb);
+    main.setAttribute('aria-pressed', String(done));
+    main.setAttribute('aria-label', goal.text);
+  } else {
+    main.setAttribute('aria-label', `${goal.text}, ${goal.count} of ${goal.target} done`);
   }
   main.append(el('span', 'text', goal.text));
   if (goal.fromTemplate) {
@@ -140,19 +147,15 @@ function goalRow(goal) {
     tag.setAttribute('aria-label', 'Recurring goal');
     main.append(tag);
   }
+  if (goal.target > 1) main.append(el('span', 'count', `${goal.count} / ${goal.target}`));
   li.append(main);
 
   const controls = el('div', 'controls');
   if (goal.target > 1) {
-    const counter = el('div', 'counter');
-    counter.append(
-      button('−', `Decrease count for "${goal.text}"`, () => mapGoal(decrement), 'small', `${goal.id}:dec`),
-      el('span', 'count', `${goal.count} / ${goal.target}`),
-      button('+', `Increase count for "${goal.text}"`, () => mapGoal(increment), 'small', `${goal.id}:inc`),
-    );
-    controls.append(counter);
+    const minus = button('−', `Remove one from "${goal.text}"`, () => mapGoal(decrement), 'small', `${goal.id}:dec`);
+    minus.disabled = goal.count === 0;
+    controls.append(minus);
   }
-
   controls.append(
     button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'week', id: goal.id }), 'small', `${goal.id}:edit`),
     button('✕', `Delete "${goal.text}"`, () => {

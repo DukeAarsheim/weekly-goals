@@ -30,6 +30,17 @@ export function toggle(goal) {
   return { ...goal, count: isDone(goal) ? 0 : goal.target };
 }
 
+// What tapping a goal's card does: toggle a once-a-week goal; add one to a counted goal, wrapping to 0 once it is complete.
+export function tap(goal) {
+  if (goal.target === 1) return toggle(goal);
+  return { ...goal, count: isDone(goal) ? 0 : goal.count + 1 };
+}
+
+// How full a goal's progress bar is, from 0 to 1.
+export function fraction(goal) {
+  return Math.min(1, goal.count / goal.target);
+}
+
 export function progress(goals) {
   return { done: goals.filter(isDone).length, total: goals.length };
 }

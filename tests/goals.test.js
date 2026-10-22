@@ -127,3 +127,32 @@ test('moveGoal swaps with neighbor and ignores out-of-range moves', () => {
   assert.equal(moveGoal(list, 'c', 1), list);
   assert.equal(moveGoal(list, 'zzz', 1), list);
 });
+
+test('tap toggles a target-1 goal', async () => {
+  const { tap } = await import('../goals.js');
+  assert.equal(tap(goal({ target: 1, count: 0 })).count, 1);
+  assert.equal(tap(goal({ target: 1, count: 1 })).count, 0);
+});
+
+test('tap adds one on a counted goal and resets to 0 once the target is reached', async () => {
+  const { tap } = await import('../goals.js');
+  assert.equal(tap(goal({ target: 3, count: 0 })).count, 1);
+  assert.equal(tap(goal({ target: 3, count: 2 })).count, 3);
+  assert.equal(tap(goal({ target: 3, count: 3 })).count, 0);
+  assert.equal(tap(goal({ target: 3, count: 5 })).count, 0);
+});
+
+test('tap does not mutate its input', async () => {
+  const { tap } = await import('../goals.js');
+  const g = goal({ target: 3, count: 1 });
+  tap(g);
+  assert.equal(g.count, 1);
+});
+
+test('fraction is count/target clamped to 0..1', async () => {
+  const { fraction } = await import('../goals.js');
+  assert.equal(fraction(goal({ target: 4, count: 1 })), 0.25);
+  assert.equal(fraction(goal({ target: 3, count: 3 })), 1);
+  assert.equal(fraction(goal({ target: 3, count: 7 })), 1);
+  assert.equal(fraction(goal({ target: 1, count: 0 })), 0);
+});
