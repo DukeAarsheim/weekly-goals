@@ -1,6 +1,6 @@
 import { toISODate, weekKey, addWeeks, weekLabel } from './weeks.js';
 import {
-  ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal,
+  ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal, orderByIds,
   decrement, tap, fraction, isDone, progress, cleanText,
 } from './goals.js';
 import { load, save, exportJSON, importJSON, STORAGE_KEY, BACKUP_KEY } from './storage.js';
@@ -121,6 +121,7 @@ function button(label, ariaLabel, onClick, className = 'small', focusKey = '') {
 function goalRow(goal) {
   const done = isDone(goal);
   const li = el('li', 'goal tappable' + (done ? ' done' : ''));
+  li.dataset.id = goal.id;
   li.style.setProperty('--fill', `${Math.round(fraction(goal) * 100)}%`);
   const mapGoal = fn => updateGoals(gs => gs.map(g => (g.id === goal.id ? fn(g) : g)));
 
@@ -218,6 +219,134 @@ function render() {
     if (next) next.focus();
   }
 }
+
+// ---------- press and hold a goal, then drag it into a new order ----------
+const HOLD_MS = 400;  // how long to hold before the card lifts
+const HOLD_SLOP = 10; // px the pointer may wander during the hold before it counts as a scroll instead
+const EDGE = 70;      // px from the top/bottom of the screen where dragging auto-scrolls
+const goalList = $('goalList');
+let drag = null;             // { li, startX, startY, lastY, grab, timer, raf, active }
+let suppressClickUntil = 0;  // a drag ends with a click event that must not count the goal
+let lastTouchAt = 0;         // used to ignore the mouse events browsers emulate after a touch
+
+function holdTarget(e) {
+  const li = e.target.closest('.goal.tappable');
+  return li && !e.target.closest('.controls') ? li : null;
+}
+
+function startHold(li, x, y) {
+  cancelDrag();
+  drag = { li, startX: x, startY: y, lastY: y, grab: 0, timer: setTimeout(activateDrag, HOLD_MS), raf: 0, active: false };
+}
+
+function activateDrag() {
+  if (!drag) return;
+  if (!drag.li.isConnected) { cancelDrag(); return; }
+  drag.active = true;
+  drag.grab = drag.lastY - drag.li.getBoundingClientRect().top; // where on the card the finger is holding it
+  drag.li.classList.add('dragging');
+  goalList.classList.add('is-dragging');
+  try { if (navigator.vibrate) navigator.vibrate(15); } catch { /* vibration isn't available on every device */ }
+  drag.raf = requestAnimationFrame(dragLoop);
+}
+
+// Runs every frame while a card is lifted: auto-scrolls near the screen edges and keeps the card under the finger.
+function dragLoop() {
+  if (!drag || !drag.active) return;
+  if (!drag.li.isConnected) { cancelDrag(); return; }
+  if (drag.lastY < EDGE) window.scrollBy(0, -12);
+  else if (drag.lastY > window.innerHeight - EDGE) window.scrollBy(0, 12);
+  placeDragged();
+  drag.raf = requestAnimationFrame(dragLoop);
+}
+
+function placeDragged() {
+  const { li, lastY, grab } = drag;
+  li.style.transform = '';
+  const height = li.getBoundingClientRect().height;
+  const center = lastY - grab + height / 2;
+  let before = null; // the first other card whose middle is below the dragged card's centre
+  for (const other of goalList.children) {
+    if (other === li) continue;
+    const r = other.getBoundingClientRect();
+    if (center < r.top + r.height / 2) { before = other; break; }
+  }
+  if (before !== li.nextElementSibling) goalList.insertBefore(li, before);
+  const top = li.getBoundingClientRect().top;
+  li.style.transform = `translateY(${lastY - grab - top}px) scale(1.02)`;
+}
+
+function endDrag(save) {
+  const d = drag;
+  if (!d) return;
+  clearTimeout(d.timer);
+  cancelAnimationFrame(d.raf);
+  drag = null;
+  if (!d.active) return;
+  suppressClickUntil = Date.now() + 400;
+  d.li.classList.remove('dragging');
+  d.li.style.transform = '';
+  goalList.classList.remove('is-dragging');
+  const ids = [...goalList.children].map(li => li.dataset.id);
+  const week = state.data.weeks[state.key];
+  const changed = save && d.li.isConnected && ids.join() !== week.goals.map(g => g.id).join();
+  if (changed) updateGoals(gs => orderByIds(gs, ids));
+  else render(); // put the list back as it was (cancelled, or dropped where it started)
+}
+
+function cancelDrag() { endDrag(false); }
+
+function wander(x, y) {
+  return Math.hypot(x - drag.startX, y - drag.startY) > HOLD_SLOP;
+}
+
+goalList.addEventListener('touchstart', e => {
+  lastTouchAt = Date.now();
+  if (e.touches.length !== 1) { cancelDrag(); return; }
+  const li = holdTarget(e);
+  if (li) startHold(li, e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+// Not passive: once a card is lifted, moving the finger must drag it instead of scrolling the page.
+goalList.addEventListener('touchmove', e => {
+  if (!drag) return;
+  const t = e.touches[0];
+  if (drag.active) {
+    e.preventDefault();
+    drag.lastY = t.clientY;
+  } else if (wander(t.clientX, t.clientY)) {
+    cancelDrag(); // the finger moved before the hold finished: it's a normal scroll
+  }
+}, { passive: false });
+
+goalList.addEventListener('touchend', () => { lastTouchAt = Date.now(); endDrag(true); });
+goalList.addEventListener('touchcancel', cancelDrag);
+
+// Mouse, so it also works on a computer.
+goalList.addEventListener('mousedown', e => {
+  if (e.button !== 0 || Date.now() - lastTouchAt < 700) return;
+  const li = holdTarget(e);
+  if (li) startHold(li, e.clientX, e.clientY);
+});
+window.addEventListener('mousemove', e => {
+  if (!drag) return;
+  if (drag.active) drag.lastY = e.clientY;
+  else if (wander(e.clientX, e.clientY)) cancelDrag();
+});
+window.addEventListener('mouseup', () => endDrag(true));
+
+// Stop the browser's long-press menu from interrupting the hold.
+goalList.addEventListener('contextmenu', e => {
+  if (drag || Date.now() - lastTouchAt < 1500) e.preventDefault();
+});
+
+// The click that follows a drop or a hold must not count the goal.
+goalList.addEventListener('click', e => {
+  if (Date.now() < suppressClickUntil) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}, true);
 
 // ---------- goal dialog ----------
 function openGoalDialog(ctx) {

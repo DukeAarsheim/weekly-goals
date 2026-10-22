@@ -156,3 +156,25 @@ test('fraction is count/target clamped to 0..1', async () => {
   assert.equal(fraction(goal({ target: 3, count: 7 })), 1);
   assert.equal(fraction(goal({ target: 1, count: 0 })), 0);
 });
+
+test('orderByIds reorders to match the id list', async () => {
+  const { orderByIds } = await import('../goals.js');
+  const list = [goal({ id: 'a' }), goal({ id: 'b' }), goal({ id: 'c' })];
+  assert.deepEqual(orderByIds(list, ['c', 'a', 'b']).map(g => g.id), ['c', 'a', 'b']);
+});
+
+test('orderByIds keeps goals missing from the id list (at the end) and ignores unknown or repeated ids', async () => {
+  const { orderByIds } = await import('../goals.js');
+  const list = [goal({ id: 'a' }), goal({ id: 'b' }), goal({ id: 'c' })];
+  assert.deepEqual(orderByIds(list, ['b']).map(g => g.id), ['b', 'a', 'c']);
+  assert.deepEqual(orderByIds(list, ['zzz', 'c', 'c', 'a']).map(g => g.id), ['c', 'a', 'b']);
+  assert.deepEqual(orderByIds(list, []).map(g => g.id), ['a', 'b', 'c']);
+});
+
+test('orderByIds does not mutate the input or change goal contents', async () => {
+  const { orderByIds } = await import('../goals.js');
+  const list = [goal({ id: 'a', count: 2 }), goal({ id: 'b' })];
+  const out = orderByIds(list, ['b', 'a']);
+  assert.deepEqual(list.map(g => g.id), ['a', 'b']);
+  assert.equal(out[1], list[0]);
+});

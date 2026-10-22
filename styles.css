@@ -53,6 +53,9 @@ button.danger { color: var(--danger); }
   border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px;
 }
 .goal.tappable { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+.goal { position: relative; -webkit-touch-callout: none; }
+.goal.dragging { z-index: 3; box-shadow: 0 10px 28px rgba(0, 0, 0, .35); transition: none; }
+.goals.is-dragging, .goals.is-dragging * { cursor: grabbing; }
 .goal.done { background: var(--complete); border-color: var(--complete-edge); color: var(--on-complete); }
 /* On narrow screens the controls wrap onto their own line instead of squeezing the text. */
 .goal .main { display: flex; align-items: center; gap: 10px; flex: 1 1 11em; min-width: 0; }

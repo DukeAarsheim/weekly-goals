@@ -85,6 +85,20 @@ export function deleteGoal(list, id) {
   return list.filter(g => g.id !== id);
 }
 
+// Reorders a list to follow `ids`. Goals missing from `ids` keep their relative order at the end; unknown or repeated ids are ignored.
+export function orderByIds(list, ids) {
+  const byId = new Map(list.map(g => [g.id, g]));
+  const ordered = [];
+  for (const id of ids) {
+    const g = byId.get(id);
+    if (g) {
+      ordered.push(g);
+      byId.delete(id);
+    }
+  }
+  return [...ordered, ...byId.values()];
+}
+
 export function moveGoal(list, id, delta) {
   const from = list.findIndex(g => g.id === id);
   const to = from + delta;
