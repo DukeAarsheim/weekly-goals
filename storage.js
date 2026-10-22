@@ -44,7 +44,12 @@ export function load(storage) {
   } catch {
     // fall through to the corrupt path
   }
-  try { storage.setItem(BACKUP_KEY, raw); } catch { /* backup is best-effort */ }
+  try {
+    storage.setItem(BACKUP_KEY, raw);
+  } catch {
+    // The old data could not be preserved, so the caller must not overwrite it.
+    return { data: emptyData(), warning: 'corrupt-nobackup' };
+  }
   return { data: emptyData(), warning: 'corrupt' };
 }
 

@@ -30,8 +30,11 @@ function clearBanner(kind) {
 }
 
 // ---------- persistence ----------
+let saveBlocked = false; // set when unreadable stored data could not be backed up
+
 function persist(data) {
   state.data = data;
+  if (saveBlocked) return;
   if (save(storage, data)) clearBanner('save');
   else setBanner('save', "Couldn't save your changes. Storage may be full or blocked in this browser — export a backup if you can.");
 }
@@ -81,6 +84,17 @@ function openWeek(key) {
   commit(ensureWeek(state.data, key));
   syncNotes();
 }
+
+// An installed app can stay open across a week boundary; follow the calendar if the user was on the current week.
+let currentKey = weekKey(new Date());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  const nowKey = weekKey(new Date());
+  if (nowKey === currentKey) return;
+  const wasOnCurrent = state.key === currentKey;
+  currentKey = nowKey;
+  if (wasOnCurrent) openWeek(nowKey); else render();
+});
 
 $('prev').addEventListener('click', () => openWeek(addWeeks(state.key, -1)));
 $('next').addEventListener('click', () => openWeek(addWeeks(state.key, 1)));
@@ -271,6 +285,9 @@ if (loaded.warning === 'unavailable') {
   setBanner('startup', "Storage is unavailable in this browser, so your goals won't be saved.");
 } else if (loaded.warning === 'corrupt') {
   setBanner('startup', "Your saved data couldn't be read, so the app started fresh. The old data was kept as a backup in this browser.");
+} else if (loaded.warning === 'corrupt-nobackup') {
+  saveBlocked = true;
+  setBanner('startup', "Your saved data couldn't be read and couldn't be backed up, so nothing you enter will be saved this session and the old data is left untouched. Free up browser storage and reload.");
 }
 state.data = ensureWeek(state.data, state.key);
 persist(state.data);

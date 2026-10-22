@@ -81,3 +81,14 @@ test('importJSON rejects non-JSON, wrong shape, and wrong version with readable 
   assert.throws(() => importJSON(JSON.stringify({ ...sample(), version: 2 })), /not a Weekly Goals backup/);
   assert.throws(() => importJSON(''), /not valid JSON/);
 });
+
+test('load: corrupt data whose backup cannot be written reports corrupt-nobackup', () => {
+  const raw = '{not json';
+  const s = {
+    getItem: k => (k === STORAGE_KEY ? raw : null),
+    setItem() { throw new Error('quota'); },
+  };
+  const result = load(s);
+  assert.equal(result.warning, 'corrupt-nobackup');
+  assert.deepEqual(result.data, emptyData());
+});
