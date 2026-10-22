@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Weekly Goals</title>
+  <meta name="theme-color" content="#2f6f5e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <header class="topbar" id="topbar">
+    <button id="prev" class="icon-btn" aria-label="Previous week">‹</button>
+    <div class="week-title">
+      <h1 id="weekLabel"></h1>
+      <button id="thisWeek" class="link" hidden>Back to this week</button>
+    </div>
+    <button id="next" class="icon-btn" aria-label="Next week">›</button>
+  </header>
+
+  <main id="weekView">
+    <div class="progress">
+      <div class="bar"><div id="barFill"></div></div>
+      <span id="progressText"></span>
+    </div>
+    <ul id="goalList" class="goals"></ul>
+    <p id="emptyState" class="empty" hidden>No goals yet. Add one below, or set up recurring goals under Template.</p>
+    <button id="addGoal" class="primary wide">+ Add goal</button>
+    <section class="notes">
+      <label for="notes">Notes for this week</label>
+      <textarea id="notes" rows="6" placeholder="How did the week go?"></textarea>
+    </section>
+  </main>
+
+  <main id="templateView" hidden>
+    <h1>Recurring goals</h1>
+    <p class="hint">These are copied into every new week. Changes only affect weeks created afterwards.</p>
+    <ul id="templateList" class="goals"></ul>
+    <p id="templateEmpty" class="empty" hidden>No recurring goals yet.</p>
+    <button id="addTemplate" class="primary wide">+ Add recurring goal</button>
+  </main>
+
+  <nav class="bottombar" aria-label="Main">
+    <button id="navWeek">Week</button>
+    <button id="navTemplate">Template</button>
+    <button id="navData">Data</button>
+  </nav>
+
+  <dialog id="goalDialog">
+    <form id="goalForm">
+      <h2 id="goalDialogTitle">Add goal</h2>
+      <label>Goal
+        <input id="goalText" required pattern=".*\S.*" maxlength="200" autocomplete="off">
+      </label>
+      <label>Times per week
+        <input id="goalTarget" type="number" inputmode="numeric" min="1" step="1" value="1">
+      </label>
+      <div class="actions">
+        <button type="button" id="goalCancel">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dataDialog">
+    <h2>Your data</h2>
+    <p class="hint">Goals are stored only in this browser. Export a backup, or move your data to another device by importing it there.</p>
+    <div class="actions column">
+      <button id="exportBtn" class="primary">Export backup (JSON)</button>
+      <button id="importBtn">Import backup…</button>
+      <button id="dataClose">Close</button>
+    </div>
+  </dialog>
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+:root {
+  --bg: #f6f5f1; --fg: #1f2a26; --muted: #66726c; --card: #ffffff;
+  --accent: #2f6f5e; --accent-fg: #ffffff; --border: #dcdad2; --danger: #b3382c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141a18; --fg: #e8ece9; --muted: #9aa8a1; --card: #1d2623;
+    --accent: #4aa88e; --accent-fg: #0b1511; --border: #2e3a36; --danger: #e07a6e;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+main, .topbar, .banner { max-width: 560px; margin-inline: auto; padding-inline: 16px; }
+h1 { font-size: 1.25rem; margin: 0; }
+h2 { margin-top: 0; }
+button, input, textarea { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--border); background: var(--card); border-radius: 10px;
+  padding: 10px 14px; min-height: 44px; cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.wide { width: 100%; margin: 12px 0; }
+button.link { border: 0; background: none; color: var(--accent); min-height: 0; padding: 2px 0; font-size: .875rem; }
+button.icon-btn { width: 44px; padding: 0; font-size: 1.5rem; line-height: 1; }
+button.small { min-height: 36px; min-width: 36px; padding: 4px 8px; }
+button.danger { color: var(--danger); }
+
+.banner { background: #fff3cd; color: #5c4400; padding-block: 10px; font-size: .9rem; max-width: none; }
+@media (prefers-color-scheme: dark) { .banner { background: #4a3d10; color: #ffe9a8; } }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block: 12px; }
+.week-title { text-align: center; }
+
+.progress { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
+.bar { flex: 1; height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+#barFill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+#progressText { font-size: .875rem; color: var(--muted); white-space: nowrap; }
+
+.goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.goal {
+  display: flex; align-items: center; gap: 10px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px;
+}
+.goal input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
+.goal .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.goal.done .text { text-decoration: line-through; color: var(--muted); }
+.goal .tag { font-size: .75rem; color: var(--muted); }
+.counter { display: flex; align-items: center; gap: 6px; flex: none; }
+.counter .count { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.empty, .hint { color: var(--muted); }
+
+.notes { margin-top: 20px; }
+.notes label { display: block; font-weight: 600; margin-bottom: 6px; }
+textarea {
+  width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card); resize: vertical;
+}
+
+.bottombar {
+  position: fixed; inset: auto 0 0 0; display: flex; justify-content: center; gap: 8px;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: var(--card); border-top: 1px solid var(--border);
+}
+.bottombar button { flex: 1; max-width: 180px; }
+.bottombar button[aria-current=page] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+dialog {
+  border: 1px solid var(--border); border-radius: 14px; background: var(--card); color: var(--fg);
+  width: min(92vw, 420px); padding: 18px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, .45); }
+dialog label { display: block; margin-bottom: 12px; font-weight: 600; }
+dialog input {
+  display: block; width: 100%; margin-top: 4px; padding: 10px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.actions { display: flex; justify-content: flex-end; gap: 8px; }
+.actions.column { flex-direction: column; }
