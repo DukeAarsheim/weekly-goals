@@ -11,6 +11,8 @@
   }
 }
 * { box-sizing: border-box; }
+/* Stops a quick double tap from zooming the page, but still allows pinch zoom and normal scrolling. */
+html { touch-action: manipulation; }
 [hidden] { display: none !important; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
