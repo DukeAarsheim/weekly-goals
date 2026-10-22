@@ -1,5 +1,5 @@
 // Bump CACHE whenever any file in ASSETS changes, or users keep the old copy.
-const CACHE = 'weekly-goals-v1';
+const CACHE = 'weekly-goals-v2';
 const ASSETS = [
   './',
   'index.html',

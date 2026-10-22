@@ -43,9 +43,13 @@ button.danger { color: var(--danger); }
 
 .goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .goal {
-  display: flex; align-items: center; gap: 10px; background: var(--card);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: var(--card);
   border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px;
 }
+/* On narrow screens the controls wrap onto their own line instead of squeezing the text. */
+.goal .main { display: flex; align-items: center; gap: 10px; flex: 1 1 11em; min-width: 0; }
+.goal label.main { cursor: pointer; min-height: 36px; }
+.goal .controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .goal input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
 .goal .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .goal.done .text { text-decoration: line-through; color: var(--muted); }

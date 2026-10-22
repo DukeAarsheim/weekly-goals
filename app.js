@@ -3,7 +3,7 @@ import {
   ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal,
   increment, decrement, toggle, isDone, progress, cleanText,
 } from './goals.js';
-import { load, save, exportJSON, importJSON } from './storage.js';
+import { load, save, exportJSON, importJSON, STORAGE_KEY } from './storage.js';
 
 const $ = id => document.getElementById(id);
 
@@ -120,23 +120,24 @@ function goalRow(goal) {
   const li = el('li', 'goal' + (isDone(goal) ? ' done' : ''));
   const mapGoal = fn => updateGoals(gs => gs.map(g => (g.id === goal.id ? fn(g) : g)));
 
+  // For a target-1 goal the whole text area is a <label>, so tapping the text toggles the checkbox.
+  const main = el(goal.target === 1 ? 'label' : 'div', 'main');
   if (goal.target === 1) {
     const cb = el('input');
     cb.type = 'checkbox';
     cb.checked = isDone(goal);
-    cb.setAttribute('aria-label', `Mark "${goal.text}" done`);
     cb.addEventListener('change', () => mapGoal(toggle));
-    li.append(cb);
+    main.append(cb);
   }
-
-  const text = el('span', 'text', goal.text);
-  li.append(text);
+  main.append(el('span', 'text', goal.text));
   if (goal.fromTemplate) {
     const tag = el('span', 'tag', '↻');
     tag.title = 'Recurring goal';
-    li.append(tag);
+    main.append(tag);
   }
+  li.append(main);
 
+  const controls = el('div', 'controls');
   if (goal.target > 1) {
     const counter = el('div', 'counter');
     counter.append(
@@ -144,15 +145,16 @@ function goalRow(goal) {
       el('span', 'count', `${goal.count} / ${goal.target}`),
       button('+', `Increase count for "${goal.text}"`, () => mapGoal(increment)),
     );
-    li.append(counter);
+    controls.append(counter);
   }
 
-  li.append(
+  controls.append(
     button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'week', id: goal.id })),
     button('✕', `Delete "${goal.text}"`, () => {
       if (confirm(`Delete "${goal.text}" from this week?`)) updateGoals(gs => deleteGoal(gs, goal.id));
     }, 'small danger'),
   );
+  li.append(controls);
   return li;
 }
 
@@ -169,9 +171,11 @@ function renderWeek() {
 
 function templateRow(goal) {
   const li = el('li', 'goal');
-  li.append(el('span', 'text', goal.text));
-  if (goal.target > 1) li.append(el('span', 'tag', `×${goal.target}/wk`));
-  li.append(
+  const main = el('div', 'main');
+  main.append(el('span', 'text', goal.text));
+  if (goal.target > 1) main.append(el('span', 'tag', `×${goal.target}/wk`));
+  const controls = el('div', 'controls');
+  controls.append(
     button('↑', `Move "${goal.text}" up`, () => commitTemplate(t => moveGoal(t, goal.id, -1))),
     button('↓', `Move "${goal.text}" down`, () => commitTemplate(t => moveGoal(t, goal.id, 1))),
     button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'template', id: goal.id })),
@@ -181,6 +185,7 @@ function templateRow(goal) {
       }
     }, 'small danger'),
   );
+  li.append(main, controls);
   return li;
 }
 
@@ -276,6 +281,24 @@ $('importFile').addEventListener('change', async e => {
   commit(ensureWeek(imported, state.key));
   syncNotes();
   $('dataDialog').close();
+});
+
+// ---------- sync with other open copies (e.g. installed app + browser tab) ----------
+window.addEventListener('storage', e => {
+  if (e.storageArea !== storage || (e.key !== null && e.key !== STORAGE_KEY)) return;
+  if (saveBlocked) return;
+  const { data, warning } = load(storage);
+  if (warning) return;
+  // Keep notes typed here that haven't been saved yet; everything else comes from the other copy.
+  const pendingNotes = notesTimer !== null ? $('notes').value : null;
+  let next = ensureWeek(data, state.key);
+  if (pendingNotes !== null) {
+    const week = next.weeks[state.key];
+    next = { ...next, weeks: { ...next.weeks, [state.key]: { ...week, notes: pendingNotes } } };
+  }
+  if (next !== data) commit(next);
+  else { state.data = data; render(); }
+  if (pendingNotes === null) syncNotes();
 });
 
 // --- init ---
