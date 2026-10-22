@@ -153,7 +153,38 @@ function renderWeek() {
   $('goalList').replaceChildren(...week.goals.map(goalRow));
 }
 
-function render() { renderWeek(); }
+function templateRow(goal) {
+  const li = el('li', 'goal');
+  li.append(el('span', 'text', goal.text));
+  if (goal.target > 1) li.append(el('span', 'tag', `×${goal.target}/wk`));
+  li.append(
+    button('↑', `Move "${goal.text}" up`, () => commitTemplate(t => moveGoal(t, goal.id, -1))),
+    button('↓', `Move "${goal.text}" down`, () => commitTemplate(t => moveGoal(t, goal.id, 1))),
+    button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'template', id: goal.id })),
+    button('✕', `Delete "${goal.text}"`, () => {
+      if (confirm(`Remove "${goal.text}" from your recurring goals? Existing weeks are not changed.`)) {
+        commitTemplate(t => deleteGoal(t, goal.id));
+      }
+    }, 'small danger'),
+  );
+  return li;
+}
+
+function renderTemplate() {
+  const template = state.data.template;
+  $('templateList').replaceChildren(...template.map(templateRow));
+  $('templateEmpty').hidden = template.length > 0;
+}
+
+function render() {
+  const onWeek = state.view === 'week';
+  $('weekView').hidden = !onWeek;
+  $('topbar').hidden = !onWeek;
+  $('templateView').hidden = onWeek;
+  $('navWeek').setAttribute('aria-current', onWeek ? 'page' : 'false');
+  $('navTemplate').setAttribute('aria-current', onWeek ? 'false' : 'page');
+  if (onWeek) renderWeek(); else renderTemplate();
+}
 
 // ---------- goal dialog ----------
 function openGoalDialog(ctx) {
@@ -184,6 +215,54 @@ $('goalForm').addEventListener('submit', e => {
 });
 
 $('addGoal').addEventListener('click', () => openGoalDialog({ kind: 'week', id: null }));
+
+// ---------- bottom navigation ----------
+$('navWeek').addEventListener('click', () => { state.view = 'week'; render(); });
+$('navTemplate').addEventListener('click', () => {
+  flushNotes();
+  state.view = 'template';
+  render();
+});
+$('addTemplate').addEventListener('click', () => openGoalDialog({ kind: 'template', id: null }));
+
+// ---------- data: export / import ----------
+$('navData').addEventListener('click', () => $('dataDialog').showModal());
+$('dataClose').addEventListener('click', () => $('dataDialog').close());
+
+$('exportBtn').addEventListener('click', () => {
+  flushNotes();
+  const blob = new Blob([exportJSON(state.data)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `weekly-goals-${toISODate(new Date())}.json`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+$('importBtn').addEventListener('click', () => $('importFile').click());
+
+$('importFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  let imported;
+  try {
+    imported = importJSON(await file.text());
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
+  if (!confirm('Replace all current goals and notes with the contents of this file?')) return;
+  state.data = imported;
+  clearTimeout(notesTimer);
+  notesTimer = null;
+  commit(ensureWeek(imported, state.key));
+  syncNotes();
+  $('dataDialog').close();
+});
 
 // --- init ---
 const loaded = load(storage);
