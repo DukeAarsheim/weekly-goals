@@ -3,7 +3,7 @@ import {
   ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal,
   increment, decrement, toggle, isDone, progress, cleanText,
 } from './goals.js';
-import { load, save, exportJSON, importJSON, STORAGE_KEY } from './storage.js';
+import { load, save, exportJSON, importJSON, STORAGE_KEY, BACKUP_KEY } from './storage.js';
 
 const $ = id => document.getElementById(id);
 
@@ -108,9 +108,11 @@ function el(tag, className, text) {
   return node;
 }
 
-function button(label, ariaLabel, onClick, className = 'small') {
+// focusKey lets render() put keyboard focus back on the same control after the list is rebuilt.
+function button(label, ariaLabel, onClick, className = 'small', focusKey = '') {
   const b = el('button', className, label);
   b.type = 'button';
+  if (focusKey) b.dataset.focus = focusKey;
   b.setAttribute('aria-label', ariaLabel);
   b.addEventListener('click', onClick);
   return b;
@@ -126,6 +128,7 @@ function goalRow(goal) {
     const cb = el('input');
     cb.type = 'checkbox';
     cb.checked = isDone(goal);
+    cb.dataset.focus = `${goal.id}:check`;
     cb.addEventListener('change', () => mapGoal(toggle));
     main.append(cb);
   }
@@ -133,6 +136,8 @@ function goalRow(goal) {
   if (goal.fromTemplate) {
     const tag = el('span', 'tag', '↻');
     tag.title = 'Recurring goal';
+    tag.setAttribute('role', 'img');
+    tag.setAttribute('aria-label', 'Recurring goal');
     main.append(tag);
   }
   li.append(main);
@@ -141,18 +146,18 @@ function goalRow(goal) {
   if (goal.target > 1) {
     const counter = el('div', 'counter');
     counter.append(
-      button('−', `Decrease count for "${goal.text}"`, () => mapGoal(decrement)),
+      button('−', `Decrease count for "${goal.text}"`, () => mapGoal(decrement), 'small', `${goal.id}:dec`),
       el('span', 'count', `${goal.count} / ${goal.target}`),
-      button('+', `Increase count for "${goal.text}"`, () => mapGoal(increment)),
+      button('+', `Increase count for "${goal.text}"`, () => mapGoal(increment), 'small', `${goal.id}:inc`),
     );
     controls.append(counter);
   }
 
   controls.append(
-    button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'week', id: goal.id })),
+    button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'week', id: goal.id }), 'small', `${goal.id}:edit`),
     button('✕', `Delete "${goal.text}"`, () => {
       if (confirm(`Delete "${goal.text}" from this week?`)) updateGoals(gs => deleteGoal(gs, goal.id));
-    }, 'small danger'),
+    }, 'small danger', `${goal.id}:del`),
   );
   li.append(controls);
   return li;
@@ -176,14 +181,14 @@ function templateRow(goal) {
   if (goal.target > 1) main.append(el('span', 'tag', `×${goal.target}/wk`));
   const controls = el('div', 'controls');
   controls.append(
-    button('↑', `Move "${goal.text}" up`, () => commitTemplate(t => moveGoal(t, goal.id, -1))),
-    button('↓', `Move "${goal.text}" down`, () => commitTemplate(t => moveGoal(t, goal.id, 1))),
-    button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'template', id: goal.id })),
+    button('↑', `Move "${goal.text}" up`, () => commitTemplate(t => moveGoal(t, goal.id, -1)), 'small', `${goal.id}:up`),
+    button('↓', `Move "${goal.text}" down`, () => commitTemplate(t => moveGoal(t, goal.id, 1)), 'small', `${goal.id}:down`),
+    button('✎', `Edit "${goal.text}"`, () => openGoalDialog({ kind: 'template', id: goal.id }), 'small', `${goal.id}:edit`),
     button('✕', `Delete "${goal.text}"`, () => {
       if (confirm(`Remove "${goal.text}" from your recurring goals? Existing weeks are not changed.`)) {
         commitTemplate(t => deleteGoal(t, goal.id));
       }
-    }, 'small danger'),
+    }, 'small danger', `${goal.id}:del`),
   );
   li.append(main, controls);
   return li;
@@ -202,7 +207,13 @@ function render() {
   $('templateView').hidden = onWeek;
   $('navWeek').setAttribute('aria-current', onWeek ? 'page' : 'false');
   $('navTemplate').setAttribute('aria-current', onWeek ? 'false' : 'page');
+  // Rebuilding the lists destroys the focused control; restore focus so keyboard and switch users keep their place.
+  const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.focus : '';
   if (onWeek) renderWeek(); else renderTemplate();
+  if (focusKey) {
+    const next = document.querySelector(`[data-focus="${CSS.escape(focusKey)}"]`);
+    if (next) next.focus();
+  }
 }
 
 // ---------- goal dialog ----------
@@ -245,20 +256,41 @@ $('navTemplate').addEventListener('click', () => {
 $('addTemplate').addEventListener('click', () => openGoalDialog({ kind: 'template', id: null }));
 
 // ---------- data: export / import ----------
-$('navData').addEventListener('click', () => $('dataDialog').showModal());
-$('dataClose').addEventListener('click', () => $('dataDialog').close());
-
-$('exportBtn').addEventListener('click', () => {
-  flushNotes();
-  const blob = new Blob([exportJSON(state.data)], { type: 'application/json' });
+function downloadFile(name, text, type) {
+  const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `weekly-goals-${toISODate(new Date())}.json`;
+  a.download = name;
   document.body.append(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Raw text of saved data the app couldn't read: the backup copy, or the untouched original when no backup could be made.
+function unreadableRaw() {
+  try {
+    return storage.getItem(saveBlocked ? STORAGE_KEY : BACKUP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+$('navData').addEventListener('click', () => {
+  $('backupBtn').hidden = unreadableRaw() === null;
+  $('dataDialog').showModal();
+});
+$('dataClose').addEventListener('click', () => $('dataDialog').close());
+
+$('exportBtn').addEventListener('click', () => {
+  flushNotes();
+  downloadFile(`weekly-goals-${toISODate(new Date())}.json`, exportJSON(state.data), 'application/json');
+});
+
+$('backupBtn').addEventListener('click', () => {
+  const raw = unreadableRaw();
+  if (raw !== null) downloadFile('weekly-goals-unreadable-data.txt', raw, 'text/plain');
 });
 
 $('importBtn').addEventListener('click', () => $('importFile').click());
