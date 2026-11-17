@@ -3,6 +3,7 @@ import {
   ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal, orderByIds,
   decrement, tap, fraction, isDone, progress, cleanText,
   normalizeDays, goalsOnDay, unscheduledGoals, scheduleDay, unscheduleDay, tickDay, saveLayoutToTemplate,
+  applyTemplateToWeek,
 } from './goals.js';
 import { load, save, exportJSON, importJSON, STORAGE_KEY, BACKUP_KEY } from './storage.js';
 import { widgetPayload, scriptableUrl } from './widget.js';
@@ -50,7 +51,8 @@ function commit(data) {
 }
 
 function updateGoals(fn) {
-  $('layoutStatus').textContent = ''; // a "layout saved" message no longer applies once the week changes
+  $('layoutStatus').textContent = ''; // "saved" style messages no longer apply once the week changes
+  $('applyStatus').textContent = '';
   const week = state.data.weeks[state.key];
   commit({ ...state.data, weeks: { ...state.data.weeks, [state.key]: { ...week, goals: fn(week.goals) } } });
 }
@@ -88,6 +90,7 @@ function openWeek(key) {
   if (state.data.weeks[state.key]) flushNotes();
   state.key = key;
   $('layoutStatus').textContent = '';
+  $('applyStatus').textContent = '';
   commit(ensureWeek(state.data, key));
   syncNotes();
 }
@@ -540,6 +543,25 @@ $('goalForm').addEventListener('submit', e => {
 });
 
 $('addGoal').addEventListener('click', () => openGoalDialog({ kind: 'week', id: null }));
+
+// Pulls the Template's recurring goals (and their default days) into a week that already exists.
+$('applyTemplate').addEventListener('click', () => {
+  if (state.data.template.length === 0) {
+    $('applyStatus').textContent = 'You have no recurring goals yet. Add some under Template first.';
+    return;
+  }
+  const { data, added, filled } = applyTemplateToWeek(state.data, state.key);
+  if (!added && !filled) {
+    $('applyStatus').textContent = 'Already up to date: every recurring goal is in this week.';
+    return;
+  }
+  commit(data);
+  const parts = [];
+  if (added) parts.push(`added ${added} goal${added === 1 ? '' : 's'}`);
+  if (filled) parts.push(`filled in days for ${filled}`);
+  const message = parts.join(' and ');
+  $('applyStatus').textContent = `${message[0].toUpperCase()}${message.slice(1)}.`;
+});
 
 // ---------- bottom navigation ----------
 $('navWeek').addEventListener('click', () => { state.view = 'week'; render(); });

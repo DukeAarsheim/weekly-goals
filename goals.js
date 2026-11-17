@@ -90,34 +90,64 @@ export function unscheduledGoals(goals) {
 export function saveLayoutToTemplate(data, key) {
   const week = data.weeks[key];
   if (!week) return data;
-  const recurring = week.goals.filter(g => g.fromTemplate);
-  const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
   const template = data.template.map(t => {
-    const match = recurring.find(g => g.templateId === t.id)
-      || recurring.find(g => g.templateId === undefined && sameName(g.text, t.text));
+    const match = findRecurringMatch(week.goals, t);
     return match ? { ...t, days: normalizeDays(match.days) } : t;
   });
   return { ...data, template };
+}
+
+// Re-applies the Template to a week that already exists: adds recurring goals that are missing (with their default
+// days) and fills in default days for recurring goals that have none. It never overwrites days you have set, and
+// never touches counts, ticks or notes.
+export function applyTemplateToWeek(data, key) {
+  const week = data.weeks[key];
+  if (!week) return { data, added: 0, filled: 0 };
+  let added = 0;
+  let filled = 0;
+  let goals = week.goals;
+  for (const t of data.template) {
+    const match = findRecurringMatch(goals, t);
+    if (!match) {
+      goals = [...goals, goalFromTemplate(t)];
+      added++;
+    } else if (normalizeDays(match.days).length === 0 && normalizeDays(t.days).length > 0) {
+      goals = goals.map(g => (g === match ? { ...g, days: normalizeDays(t.days) } : g));
+      filled++;
+    }
+  }
+  if (!added && !filled) return { data, added, filled };
+  return { data: { ...data, weeks: { ...data.weeks, [key]: { ...week, goals } } }, added, filled };
 }
 
 export function progress(goals) {
   return { done: goals.filter(isDone).length, total: goals.length };
 }
 
-export function createWeekFromTemplate(template) {
+function goalFromTemplate(t) {
   return {
-    goals: template.map(t => ({
-      id: newId(),
-      text: t.text,
-      target: normalizeTarget(t.target),
-      count: 0,
-      fromTemplate: true,
-      templateId: t.id,
-      days: normalizeDays(t.days),
-      doneDays: [],
-    })),
-    notes: '',
+    id: newId(),
+    text: t.text,
+    target: normalizeTarget(t.target),
+    count: 0,
+    fromTemplate: true,
+    templateId: t.id,
+    days: normalizeDays(t.days),
+    doneDays: [],
   };
+}
+
+// The goal in a week that came from a template goal: linked by templateId, or by name for goals saved before
+// templateId existed. One-off goals are never matched.
+function findRecurringMatch(goals, t) {
+  const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const recurring = goals.filter(g => g.fromTemplate);
+  return recurring.find(g => g.templateId === t.id)
+    || recurring.find(g => g.templateId === undefined && sameName(g.text, t.text));
+}
+
+export function createWeekFromTemplate(template) {
+  return { goals: template.map(goalFromTemplate), notes: '' };
 }
 
 export function ensureWeek(data, key) {

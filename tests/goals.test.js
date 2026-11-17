@@ -274,3 +274,80 @@ test('saveLayoutToTemplate copies this week\'s days for recurring goals into the
   assert.equal(saveLayoutToTemplate(data, '2099-01-01'), data); // unknown week: nothing to save
   assert.deepEqual(data.template[0].days, [0]); // input not mutated
 });
+
+const tmpl = (over = {}) => ({ id: 't1', text: 'Gym', target: 3, days: [0, 2, 4], ...over });
+const dataWith = (template, goals) => ({ version: 1, template, weeks: { '2026-11-16': { notes: 'keep me', goals } } });
+const KEY = '2026-11-16';
+
+test('applyTemplateToWeek adds recurring goals missing from the week, with their default days, and leaves the rest alone', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const progress = goal({ id: 'p', text: 'Read', target: 1, count: 1, fromTemplate: true, templateId: 't2', days: [1], doneDays: [1] });
+  const data = dataWith([tmpl(), tmpl({ id: 't2', text: 'Read', target: 1, days: [1] })], [progress]);
+  const out = applyTemplateToWeek(data, KEY);
+  assert.deepEqual([out.added, out.filled], [1, 0]);
+  const goals = out.data.weeks[KEY].goals;
+  assert.equal(goals.length, 2);
+  assert.equal(goals[0], progress); // existing goal untouched, same object
+  assert.deepEqual(
+    [goals[1].text, goals[1].target, goals[1].count, goals[1].fromTemplate, goals[1].templateId, goals[1].days, goals[1].doneDays],
+    ['Gym', 3, 0, true, 't1', [0, 2, 4], []],
+  );
+  assert.equal(out.data.weeks[KEY].notes, 'keep me');
+});
+
+test('applyTemplateToWeek does not duplicate a goal already here: matched by templateId (even renamed) or by name for older goals', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const renamed = goal({ id: 'a', text: 'Gym session', fromTemplate: true, templateId: 't1', days: [0] });
+  const legacy = goal({ id: 'b', text: '  READ ', fromTemplate: true, days: [3] }); // saved before templateId existed
+  const data = dataWith([tmpl(), tmpl({ id: 't2', text: 'Read', days: [1] })], [renamed, legacy]);
+  const out = applyTemplateToWeek(data, KEY);
+  assert.deepEqual([out.added, out.filled], [0, 0]);
+  assert.equal(out.data, data);
+});
+
+test('applyTemplateToWeek fills in default days only for existing recurring goals that have none', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const noDays = goal({ id: 'a', text: 'Gym', count: 1, fromTemplate: true, templateId: 't1', doneDays: [] });
+  const hasDays = goal({ id: 'b', text: 'Read', fromTemplate: true, templateId: 't2', days: [6], doneDays: [6], count: 1 });
+  const data = dataWith([tmpl(), tmpl({ id: 't2', text: 'Read', days: [1, 2] })], [noDays, hasDays]);
+  const out = applyTemplateToWeek(data, KEY);
+  assert.deepEqual([out.added, out.filled], [0, 1]);
+  const [a, b] = out.data.weeks[KEY].goals;
+  assert.deepEqual([a.days, a.count], [[0, 2, 4], 1]); // days filled in, progress kept
+  assert.equal(b, hasDays);                            // days the user chose are never overwritten
+});
+
+test('applyTemplateToWeek reports nothing to do when the week is already up to date', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const here = goal({ id: 'a', text: 'Gym', fromTemplate: true, templateId: 't1', days: [0, 2, 4] });
+  const data = dataWith([tmpl()], [here]);
+  const out = applyTemplateToWeek(data, KEY);
+  assert.deepEqual([out.added, out.filled, out.data === data], [0, 0, true]);
+  const empty = applyTemplateToWeek(dataWith([], [here]), KEY);
+  assert.deepEqual([empty.added, empty.filled], [0, 0]);
+});
+
+test('applyTemplateToWeek treats a template goal with no days as "no days", and does not count it as filled', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const t = { id: 't3', text: 'Call grandma', target: 1 };
+  const here = goal({ id: 'a', text: 'Call grandma', fromTemplate: true, templateId: 't3' });
+  assert.deepEqual([applyTemplateToWeek(dataWith([t], [here]), KEY).filled], [0]);
+  const added = applyTemplateToWeek(dataWith([t], []), KEY);
+  assert.deepEqual([added.added, added.data.weeks[KEY].goals[0].days], [1, []]);
+});
+
+test('applyTemplateToWeek does not match a one-off goal that merely has the same name', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const oneOff = goal({ id: 'a', text: 'Gym', fromTemplate: false });
+  const out = applyTemplateToWeek(dataWith([tmpl()], [oneOff]), KEY);
+  assert.deepEqual([out.added, out.data.weeks[KEY].goals.length], [1, 2]);
+});
+
+test('applyTemplateToWeek leaves an unknown week and its input alone', async () => {
+  const { applyTemplateToWeek } = await import('../goals.js');
+  const data = dataWith([tmpl()], []);
+  const snapshot = JSON.stringify(data);
+  assert.deepEqual([applyTemplateToWeek(data, '2099-01-04').added, applyTemplateToWeek(data, '2099-01-04').data === data], [0, true]);
+  applyTemplateToWeek(data, KEY);
+  assert.equal(JSON.stringify(data), snapshot); // not mutated
+});
