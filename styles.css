@@ -76,6 +76,25 @@ button.danger { color: var(--danger); }
 button:disabled { opacity: .4; cursor: default; }
 .empty, .hint { color: var(--muted); }
 
+/* Plan tab */
+.day { margin: 16px 0; }
+.day-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.day-head h2 { font-size: 1rem; margin: 0; }
+.day.today .day-head h2 { color: var(--accent); }
+.day .empty { margin: 4px 0; font-size: .9rem; }
+.unscheduled h2 { font-size: 1rem; margin: 16px 0 4px; }
+.unscheduled p { margin: 0; color: var(--muted); }
+
+/* Day picker chips (recurring goal dialog) and the "add to day" checklist */
+.days-field { border: 0; padding: 0; margin: 0 0 12px; }
+.days-field legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { min-height: 36px; padding: 4px 10px; }
+.chip[aria-pressed=true] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.checklist { max-height: 50vh; overflow-y: auto; margin-bottom: 8px; }
+dialog label.check { display: flex; align-items: center; gap: 10px; font-weight: 400; padding: 8px 0; margin: 0; }
+.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); flex: none; }
+
 .notes { margin-top: 20px; }
 .notes label { display: block; font-weight: 600; margin-bottom: 6px; }
 textarea {

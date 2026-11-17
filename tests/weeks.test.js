@@ -65,3 +65,21 @@ test('weekLabel: adds year when it differs from now', () => {
   assert.equal(weekLabel('2026-12-28', new Date(2026, 9, 21)), 'Dec 28 – Jan 3, 2027');
   assert.equal(weekLabel('2025-10-20', new Date(2026, 9, 21)), 'Oct 20 – 26, 2025');
 });
+
+test('DAY_NAMES / DAY_FULL list Monday first, and dayIndex maps a date to Mon=0..Sun=6', async () => {
+  const { DAY_NAMES, DAY_FULL, dayIndex } = await import('../weeks.js');
+  assert.equal(DAY_NAMES.length, 7); assert.equal(DAY_FULL.length, 7);
+  assert.equal(DAY_NAMES[0], 'Mon'); assert.equal(DAY_FULL[6], 'Sunday');
+  assert.equal(dayIndex(new Date(2026, 9, 19)), 0); // Monday
+  assert.equal(dayIndex(new Date(2026, 9, 21)), 2); // Wednesday
+  assert.equal(dayIndex(new Date(2026, 9, 25)), 6); // Sunday
+});
+
+test('daysLabel summarizes a list of days', async () => {
+  const { daysLabel } = await import('../weeks.js');
+  assert.equal(daysLabel([]), '');
+  assert.equal(daysLabel(undefined), '');
+  assert.equal(daysLabel([4, 0, 2, 2]), 'Mon Wed Fri');
+  assert.equal(daysLabel([0, 1, 2, 3, 4, 5, 6]), 'Daily');
+  assert.equal(daysLabel([9, -1, 3]), 'Thu');
+});

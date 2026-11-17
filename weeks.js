@@ -43,3 +43,21 @@ export function weekLabel(key, now = new Date()) {
   const yearDiffers = start.getFullYear() !== now.getFullYear() || end.getFullYear() !== now.getFullYear();
   return `${from} – ${to}${yearDiffers ? `, ${end.getFullYear()}` : ''}`;
 }
+
+export const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// Position of a date within its Monday-first week: Mon = 0 ... Sun = 6.
+export function dayIndex(date) {
+  return (date.getDay() + 6) % 7;
+}
+
+// Short summary of a list of days, e.g. "Mon Wed Fri", "Daily", or '' for none.
+export function daysLabel(days) {
+  const valid = [...new Set(Array.isArray(days) ? days : [])]
+    .filter(d => Number.isInteger(d) && d >= 0 && d <= 6)
+    .sort((a, b) => a - b);
+  if (valid.length === 0) return '';
+  if (valid.length === 7) return 'Daily';
+  return valid.map(d => DAY_NAMES[d]).join(' ');
+}

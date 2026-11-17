@@ -11,12 +11,18 @@ export function emptyData() {
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isTarget = n => Number.isInteger(n) && n >= 1;
 
+const isDayList = v => Array.isArray(v) && v.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
+
+// `days`, `doneDays` and `templateId` are optional so data saved before the day plan existed stays valid.
 function isTemplateGoal(g) {
-  return isObject(g) && typeof g.id === 'string' && typeof g.text === 'string' && isTarget(g.target);
+  return isObject(g) && typeof g.id === 'string' && typeof g.text === 'string' && isTarget(g.target)
+    && (g.days === undefined || isDayList(g.days));
 }
 
 function isGoal(g) {
-  return isTemplateGoal(g) && Number.isInteger(g.count) && g.count >= 0 && typeof g.fromTemplate === 'boolean';
+  return isTemplateGoal(g) && Number.isInteger(g.count) && g.count >= 0 && typeof g.fromTemplate === 'boolean'
+    && (g.doneDays === undefined || isDayList(g.doneDays))
+    && (g.templateId === undefined || typeof g.templateId === 'string');
 }
 
 function isWeek(w) {

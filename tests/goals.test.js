@@ -178,3 +178,99 @@ test('orderByIds does not mutate the input or change goal contents', async () =>
   assert.deepEqual(list.map(g => g.id), ['a', 'b']);
   assert.equal(out[1], list[0]);
 });
+
+test('normalizeDays keeps unique integers 0-6, sorted, and tolerates junk', async () => {
+  const { normalizeDays } = await import('../goals.js');
+  assert.deepEqual(normalizeDays([4, 0, 2, 2]), [0, 2, 4]);
+  assert.deepEqual(normalizeDays([7, -1, 1.5, '2', 3]), [3]);
+  assert.deepEqual(normalizeDays(undefined), []);
+  assert.deepEqual(normalizeDays('x'), []);
+});
+
+test('scheduleDay adds a day once and keeps days sorted', async () => {
+  const { scheduleDay } = await import('../goals.js');
+  const g = goal({ days: [4] });
+  assert.deepEqual(scheduleDay(g, 0).days, [0, 4]);
+  assert.deepEqual(scheduleDay(scheduleDay(g, 0), 0).days, [0, 4]);
+  assert.deepEqual(scheduleDay(goal(), 2).days, [2]); // goals saved before days existed
+  assert.equal(g.days.length, 1); // input not mutated
+});
+
+test('tickDay marks a scheduled day done and adds one to the weekly count; ticking again undoes it', async () => {
+  const { tickDay } = await import('../goals.js');
+  const g = goal({ target: 3, count: 0, days: [0, 2, 4], doneDays: [] });
+  const once = tickDay(g, 2);
+  assert.deepEqual([once.count, once.doneDays], [1, [2]]);
+  const twice = tickDay(once, 0);
+  assert.deepEqual([twice.count, twice.doneDays], [2, [0, 2]]);
+  const undone = tickDay(twice, 2);
+  assert.deepEqual([undone.count, undone.doneDays], [1, [0]]);
+});
+
+test('tickDay ignores a day the goal is not scheduled on, and works on goals without doneDays', async () => {
+  const { tickDay } = await import('../goals.js');
+  const g = goal({ target: 3, days: [1] });
+  assert.equal(tickDay(g, 5), g);
+  assert.deepEqual(tickDay(g, 1).doneDays, [1]);
+});
+
+test('unscheduleDay removes the day, and an already-ticked day also takes its tick back', async () => {
+  const { unscheduleDay } = await import('../goals.js');
+  const g = goal({ target: 3, count: 2, days: [0, 2], doneDays: [2] });
+  const out = unscheduleDay(g, 2);
+  assert.deepEqual([out.days, out.doneDays, out.count], [[0], [], 1]);
+  const notDone = unscheduleDay(g, 0);
+  assert.deepEqual([notDone.days, notDone.doneDays, notDone.count], [[2], [2], 2]);
+});
+
+test('tap and decrement keep day ticks consistent with the weekly count', async () => {
+  const { tap, decrement } = await import('../goals.js');
+  const g = goal({ target: 3, count: 3, days: [0, 2, 4], doneDays: [0, 2, 4] });
+  assert.deepEqual([tap(g).count, tap(g).doneDays], [0, []]);            // completed goal wraps to 0
+  assert.deepEqual([decrement(g).count, decrement(g).doneDays], [2, [0, 2]]);
+  const extra = goal({ target: 3, count: 1, days: [0], doneDays: [] });
+  assert.deepEqual([tap(extra).count, tap(extra).doneDays], [2, []]);     // plain taps don't invent day ticks
+});
+
+test('goalsOnDay and unscheduledGoals filter by schedule', async () => {
+  const { goalsOnDay, unscheduledGoals } = await import('../goals.js');
+  const list = [goal({ id: 'a', days: [0, 2] }), goal({ id: 'b', days: [2] }), goal({ id: 'c' }), goal({ id: 'd', days: [] })];
+  assert.deepEqual(goalsOnDay(list, 2).map(g => g.id), ['a', 'b']);
+  assert.deepEqual(goalsOnDay(list, 5).map(g => g.id), []);
+  assert.deepEqual(unscheduledGoals(list).map(g => g.id), ['c', 'd']);
+});
+
+test('createWeekFromTemplate copies each template goal\'s days and links back with templateId', async () => {
+  const template = [{ id: 't1', text: 'Gym', target: 3, days: [0, 2, 4] }, { id: 't2', text: 'Read', target: 1 }];
+  const week = createWeekFromTemplate(template);
+  assert.deepEqual(week.goals.map(g => [g.templateId, g.days, g.doneDays]), [['t1', [0, 2, 4], []], ['t2', [], []]]);
+  template[0].days.push(6);
+  assert.deepEqual(week.goals[0].days, [0, 2, 4]); // not aliased to the template
+});
+
+test('addTemplateGoal and editGoal accept days; omitting days leaves them alone', async () => {
+  const { addTemplateGoal: addT, editGoal: edit } = await import('../goals.js');
+  const out = addT([], 'Gym', 3, [4, 0]);
+  assert.deepEqual(out[0].days, [0, 4]);
+  const edited = edit(out, out[0].id, { text: 'Gym', target: 3, days: [1] });
+  assert.deepEqual(edited[0].days, [1]);
+  assert.deepEqual(edit(edited, out[0].id, { text: 'Gym 2', target: 3 })[0].days, [1]);
+});
+
+test('saveLayoutToTemplate copies this week\'s days for recurring goals into the template', async () => {
+  const { saveLayoutToTemplate } = await import('../goals.js');
+  const data = {
+    version: 1,
+    template: [{ id: 't1', text: 'Gym', target: 3, days: [0] }, { id: 't2', text: 'Read', target: 1 }, { id: 't3', text: 'Untouched', target: 1, days: [6] }],
+    weeks: { '2026-10-19': { notes: '', goals: [
+      goal({ id: 'g1', text: 'Gym', fromTemplate: true, templateId: 't1', days: [1, 3] }),
+      goal({ id: 'g2', text: 'read', fromTemplate: true, days: [5] }),          // saved before templateId existed: matched by name
+      goal({ id: 'g3', text: 'One-off', fromTemplate: false, days: [2] }),        // one-off goals are never saved
+    ] } },
+  };
+  const out = saveLayoutToTemplate(data, '2026-10-19');
+  assert.deepEqual(out.template.map(t => t.days), [[1, 3], [5], [6]]);
+  assert.equal(out.template.length, 3);
+  assert.equal(saveLayoutToTemplate(data, '2099-01-01'), data); // unknown week: nothing to save
+  assert.deepEqual(data.template[0].days, [0]); // input not mutated
+});

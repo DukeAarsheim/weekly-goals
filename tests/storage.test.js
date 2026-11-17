@@ -92,3 +92,21 @@ test('load: corrupt data whose backup cannot be written reports corrupt-nobackup
   assert.equal(result.warning, 'corrupt-nobackup');
   assert.deepEqual(result.data, emptyData());
 });
+
+test('isValidData accepts days, doneDays and templateId, and rejects malformed ones', () => {
+  const withDays = sample();
+  withDays.template[0].days = [0, 2];
+  withDays.weeks['2026-10-19'].goals[0].days = [1];
+  withDays.weeks['2026-10-19'].goals[0].doneDays = [1];
+  withDays.weeks['2026-10-19'].goals[0].templateId = 't1';
+  assert.equal(isValidData(withDays), true);
+
+  const badTemplateDays = sample(); badTemplateDays.template[0].days = [7];
+  assert.equal(isValidData(badTemplateDays), false);
+  const badGoalDays = sample(); badGoalDays.weeks['2026-10-19'].goals[0].days = 'mon';
+  assert.equal(isValidData(badGoalDays), false);
+  const badDone = sample(); badDone.weeks['2026-10-19'].goals[0].doneDays = [-1];
+  assert.equal(isValidData(badDone), false);
+  const badTemplateId = sample(); badTemplateId.weeks['2026-10-19'].goals[0].templateId = 5;
+  assert.equal(isValidData(badTemplateId), false);
+});

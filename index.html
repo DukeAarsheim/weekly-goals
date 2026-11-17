@@ -36,6 +36,18 @@
     </section>
   </main>
 
+  <main id="planView" hidden>
+    <p class="hint">Add this week's goals to the days you plan to do them. Tap a goal on its day to check it off; each check counts toward the goal's weekly total.</p>
+    <div id="planDays"></div>
+    <section id="planUnscheduled" class="unscheduled" hidden>
+      <h2>Not scheduled yet</h2>
+      <p id="planUnscheduledList"></p>
+    </section>
+    <button id="saveLayout" class="wide">Save as my default layout</button>
+    <p id="layoutStatus" class="hint" role="status"></p>
+    <p class="hint">Your saved layout is used for the days of your recurring goals in every new week. One-off goals aren't carried forward.</p>
+  </main>
+
   <main id="templateView" hidden>
     <h1>Recurring goals</h1>
     <p class="hint">These are copied into every new week. Changes only affect weeks created afterwards.</p>
@@ -46,6 +58,7 @@
 
   <nav class="bottombar" aria-label="Main">
     <button id="navWeek">Week</button>
+    <button id="navPlan">Plan</button>
     <button id="navTemplate">Template</button>
     <button id="navData">Data</button>
   </nav>
@@ -59,9 +72,25 @@
       <label>Times per week
         <input id="goalTarget" type="number" inputmode="numeric" min="1" step="1" value="1">
       </label>
+      <fieldset id="goalDaysField" class="days-field" hidden>
+        <legend>Default days (optional)</legend>
+        <div id="goalDays" class="chips"></div>
+      </fieldset>
       <div class="actions">
         <button type="button" id="goalCancel">Cancel</button>
         <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dayDialog">
+    <form id="dayForm">
+      <h2 id="dayDialogTitle">Add to day</h2>
+      <div id="dayDialogList" class="checklist"></div>
+      <p id="dayEmpty" class="hint" hidden>No goals left to add to this day.</p>
+      <div class="actions">
+        <button type="button" id="dayCancel">Cancel</button>
+        <button type="submit" id="dayAdd" class="primary">Add</button>
       </div>
     </form>
   </dialog>

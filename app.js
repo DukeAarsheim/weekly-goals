@@ -1,7 +1,8 @@
-import { toISODate, weekKey, addWeeks, weekLabel } from './weeks.js';
+import { toISODate, weekKey, addWeeks, weekLabel, DAY_NAMES, DAY_FULL, dayIndex, daysLabel } from './weeks.js';
 import {
   ensureWeek, addGoal, addTemplateGoal, editGoal, deleteGoal, moveGoal, orderByIds,
   decrement, tap, fraction, isDone, progress, cleanText,
+  normalizeDays, goalsOnDay, unscheduledGoals, scheduleDay, unscheduleDay, tickDay, saveLayoutToTemplate,
 } from './goals.js';
 import { load, save, exportJSON, importJSON, STORAGE_KEY, BACKUP_KEY } from './storage.js';
 
@@ -15,6 +16,8 @@ const storage = getStorage();
 const state = { data: null, key: weekKey(new Date()), view: 'week' };
 let notesTimer = null;
 let dialogContext = null; // { kind: 'week' | 'template', id: string | null }
+let dialogDays = new Set(); // days picked in the goal dialog (recurring goals only)
+let dayDialogDay = 0;       // which day the "add goals to a day" dialog is for
 let bannerKind = null;
 
 // ---------- banner ----------
@@ -45,6 +48,7 @@ function commit(data) {
 }
 
 function updateGoals(fn) {
+  $('layoutStatus').textContent = ''; // a "layout saved" message no longer applies once the week changes
   const week = state.data.weeks[state.key];
   commit({ ...state.data, weeks: { ...state.data.weeks, [state.key]: { ...week, goals: fn(week.goals) } } });
 }
@@ -81,6 +85,7 @@ $('notes').addEventListener('blur', flushNotes);
 function openWeek(key) {
   if (state.data.weeks[state.key]) flushNotes();
   state.key = key;
+  $('layoutStatus').textContent = '';
   commit(ensureWeek(state.data, key));
   syncNotes();
 }
@@ -148,6 +153,8 @@ function goalRow(goal) {
     tag.setAttribute('aria-label', 'Recurring goal');
     main.append(tag);
   }
+  const dayText = daysLabel(goal.days);
+  if (dayText) main.append(el('span', 'tag', dayText));
   if (goal.target > 1) main.append(el('span', 'count', `${goal.count} / ${goal.target}`));
   li.append(main);
 
@@ -167,11 +174,16 @@ function goalRow(goal) {
   return li;
 }
 
+// The week navigation shown above both the Week and Plan tabs.
+function renderHeader() {
+  $('weekLabel').textContent = weekLabel(state.key);
+  $('thisWeek').hidden = state.key === weekKey(new Date());
+}
+
 function renderWeek() {
   const week = state.data.weeks[state.key];
   const { done, total } = progress(week.goals);
-  $('weekLabel').textContent = weekLabel(state.key);
-  $('thisWeek').hidden = state.key === weekKey(new Date());
+  renderHeader();
   $('progressText').textContent = total ? `${done} of ${total} done` : 'No goals';
   $('barFill').style.width = total ? `${(done / total) * 100}%` : '0%';
   $('emptyState').hidden = total > 0;
@@ -183,6 +195,8 @@ function templateRow(goal) {
   const main = el('div', 'main');
   main.append(el('span', 'text', goal.text));
   if (goal.target > 1) main.append(el('span', 'tag', `×${goal.target}/wk`));
+  const dayText = daysLabel(goal.days);
+  if (dayText) main.append(el('span', 'tag', dayText));
   const controls = el('div', 'controls');
   controls.append(
     button('↑', `Move "${goal.text}" up`, () => commitTemplate(t => moveGoal(t, goal.id, -1)), 'small', `${goal.id}:up`),
@@ -205,15 +219,19 @@ function renderTemplate() {
 }
 
 function render() {
-  const onWeek = state.view === 'week';
-  $('weekView').hidden = !onWeek;
-  $('topbar').hidden = !onWeek;
-  $('templateView').hidden = onWeek;
-  $('navWeek').setAttribute('aria-current', onWeek ? 'page' : 'false');
-  $('navTemplate').setAttribute('aria-current', onWeek ? 'false' : 'page');
+  const view = state.view;
+  $('weekView').hidden = view !== 'week';
+  $('planView').hidden = view !== 'plan';
+  $('templateView').hidden = view !== 'template';
+  $('topbar').hidden = view === 'template'; // the Week and Plan tabs share the week navigation
+  for (const [name, id] of [['week', 'navWeek'], ['plan', 'navPlan'], ['template', 'navTemplate']]) {
+    $(id).setAttribute('aria-current', view === name ? 'page' : 'false');
+  }
   // Rebuilding the lists destroys the focused control; restore focus so keyboard and switch users keep their place.
   const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.focus : '';
-  if (onWeek) renderWeek(); else renderTemplate();
+  if (view === 'week') renderWeek();
+  else if (view === 'plan') renderPlan();
+  else renderTemplate();
   if (focusKey) {
     const next = document.querySelector(`[data-focus="${CSS.escape(focusKey)}"]`);
     if (next) next.focus();
@@ -348,14 +366,125 @@ goalList.addEventListener('click', e => {
   }
 }, true);
 
+// ---------- plan: spread the week's goals across its days ----------
+function dayEntry(goal, day) {
+  const done = normalizeDays(goal.doneDays).includes(day);
+  const li = el('li', 'goal tappable' + (done ? ' done' : ''));
+  const mapGoal = fn => updateGoals(gs => gs.map(g => (g.id === goal.id ? fn(g) : g)));
+
+  // Same pattern as the Week tab: tapping the card ticks this one day, which also counts toward the weekly total.
+  li.addEventListener('click', e => {
+    if (!e.target.closest('.controls')) mapGoal(g => tickDay(g, day));
+  });
+
+  const main = el('button', 'main');
+  main.type = 'button';
+  main.dataset.focus = `${goal.id}:d${day}`;
+  main.setAttribute('aria-pressed', String(done));
+  main.setAttribute('aria-label', `${goal.text} on ${DAY_FULL[day]}`);
+  main.append(el('span', 'text', goal.text));
+  if (goal.target > 1) main.append(el('span', 'count', `${goal.count} / ${goal.target}`));
+  li.append(main);
+
+  const controls = el('div', 'controls');
+  controls.append(
+    button('✕', `Remove "${goal.text}" from ${DAY_FULL[day]}`, () => mapGoal(g => unscheduleDay(g, day)), 'small danger', `${goal.id}:d${day}:rm`),
+  );
+  li.append(controls);
+  return li;
+}
+
+function daySection(week, day, isToday) {
+  const section = el('section', 'day' + (isToday ? ' today' : ''));
+  const head = el('div', 'day-head');
+  head.append(
+    el('h2', '', DAY_FULL[day] + (isToday ? ' · today' : '')),
+    button('+ Add', `Add goals to ${DAY_FULL[day]}`, () => openDayDialog(day), 'small', `day${day}:add`),
+  );
+  section.append(head);
+  const goals = goalsOnDay(week.goals, day);
+  if (goals.length) {
+    const list = el('ul', 'goals');
+    list.append(...goals.map(g => dayEntry(g, day)));
+    section.append(list);
+  } else {
+    section.append(el('p', 'empty', 'Nothing planned'));
+  }
+  return section;
+}
+
+function renderPlan() {
+  const week = state.data.weeks[state.key];
+  renderHeader();
+  const today = state.key === weekKey(new Date()) ? dayIndex(new Date()) : -1;
+  $('planDays').replaceChildren(...DAY_NAMES.map((_, day) => daySection(week, day, day === today)));
+  const loose = unscheduledGoals(week.goals);
+  $('planUnscheduled').hidden = loose.length === 0;
+  $('planUnscheduledList').textContent = loose.map(g => g.text).join(', ');
+}
+
+function openDayDialog(day) {
+  dayDialogDay = day;
+  const candidates = state.data.weeks[state.key].goals.filter(g => !normalizeDays(g.days).includes(day));
+  $('dayDialogTitle').textContent = `Add to ${DAY_FULL[day]}`;
+  $('dayDialogList').replaceChildren(...candidates.map(g => {
+    const label = el('label', 'check');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.value = g.id;
+    label.append(box, el('span', '', g.text));
+    return label;
+  }));
+  $('dayEmpty').hidden = candidates.length > 0;
+  $('dayAdd').disabled = candidates.length === 0;
+  $('dayDialog').showModal();
+}
+
+$('dayCancel').addEventListener('click', () => $('dayDialog').close());
+
+$('dayForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const ids = [...$('dayDialogList').querySelectorAll('input:checked')].map(box => box.value);
+  if (ids.length) updateGoals(gs => gs.map(g => (ids.includes(g.id) ? scheduleDay(g, dayDialogDay) : g)));
+  $('dayDialog').close();
+});
+
+$('saveLayout').addEventListener('click', () => {
+  const recurring = state.data.weeks[state.key].goals.filter(g => g.fromTemplate).length;
+  if (recurring === 0) {
+    $('layoutStatus').textContent = 'There are no recurring goals in this week yet. Add some under Template first.';
+    return;
+  }
+  commit(saveLayoutToTemplate(state.data, state.key));
+  $('layoutStatus').textContent = `Saved. New weeks will start with these days for your ${recurring} recurring goal${recurring === 1 ? '' : 's'}.`;
+});
+
 // ---------- goal dialog ----------
+function renderDayChips() {
+  $('goalDays').replaceChildren(...DAY_NAMES.map((name, i) => {
+    const chip = el('button', 'chip', name);
+    chip.type = 'button';
+    chip.setAttribute('aria-pressed', String(dialogDays.has(i)));
+    chip.addEventListener('click', () => {
+      if (dialogDays.has(i)) dialogDays.delete(i); else dialogDays.add(i);
+      chip.setAttribute('aria-pressed', String(dialogDays.has(i)));
+    });
+    return chip;
+  }));
+}
+
 function openGoalDialog(ctx) {
   dialogContext = ctx;
-  const list = ctx.kind === 'week' ? state.data.weeks[state.key].goals : state.data.template;
+  const isTemplate = ctx.kind === 'template';
+  const list = isTemplate ? state.data.template : state.data.weeks[state.key].goals;
   const existing = ctx.id ? list.find(g => g.id === ctx.id) : null;
-  $('goalDialogTitle').textContent = existing ? 'Edit goal' : (ctx.kind === 'week' ? 'Add goal' : 'Add recurring goal');
+  $('goalDialogTitle').textContent = existing ? 'Edit goal' : (isTemplate ? 'Add recurring goal' : 'Add goal');
   $('goalText').value = existing ? existing.text : '';
   $('goalTarget').value = existing ? existing.target : 1;
+  // Days are chosen here only for recurring goals; for this week's goals they are set on the Plan tab.
+  $('goalDaysField').hidden = !isTemplate;
+  dialogDays = new Set(existing ? normalizeDays(existing.days) : []);
+  if (isTemplate) renderDayChips();
   $('goalDialog').showModal();
   $('goalText').focus();
 }
@@ -371,7 +500,8 @@ $('goalForm').addEventListener('submit', e => {
   if (kind === 'week') {
     updateGoals(gs => (id ? editGoal(gs, id, { text, target }) : addGoal(gs, text, target)));
   } else {
-    commitTemplate(t => (id ? editGoal(t, id, { text, target }) : addTemplateGoal(t, text, target)));
+    const days = [...dialogDays];
+    commitTemplate(t => (id ? editGoal(t, id, { text, target, days }) : addTemplateGoal(t, text, target, days)));
   }
   $('goalDialog').close();
 });
@@ -380,6 +510,11 @@ $('addGoal').addEventListener('click', () => openGoalDialog({ kind: 'week', id: 
 
 // ---------- bottom navigation ----------
 $('navWeek').addEventListener('click', () => { state.view = 'week'; render(); });
+$('navPlan').addEventListener('click', () => {
+  flushNotes();
+  state.view = 'plan';
+  render();
+});
 $('navTemplate').addEventListener('click', () => {
   flushNotes();
   state.view = 'template';
