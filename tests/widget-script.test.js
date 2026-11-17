@@ -183,3 +183,20 @@ test('the second widget on stale data still asks you to send again', async () =>
   const r = await run({ family: 'accessoryRectangular', widgetParameter: '2', files: {} });
   assert.deepEqual(r.lines, ['Goals', 'Tap Send in the app to update']);
 });
+
+test('lock screen widgets ask iOS for its standard gray backdrop, so the text stands out from the wallpaper', async () => {
+  const files = { [FILE]: JSON.stringify(twoGoals()) };
+  for (const family of ['accessoryRectangular', 'accessoryCircular']) {
+    assert.equal((await run({ family, files })).widget.addAccessoryWidgetBackground, true, family);
+  }
+  // also when there is nothing to show yet, so a "tap Send" hint is readable too
+  assert.equal((await run({ family: 'accessoryRectangular', files: {} })).widget.addAccessoryWidgetBackground, true);
+  assert.equal((await run({ family: 'accessoryCircular', files: {} })).widget.addAccessoryWidgetBackground, true);
+});
+
+test('inline and home screen widgets do not get the lock screen backdrop', async () => {
+  const files = { [FILE]: JSON.stringify(twoGoals()) };
+  for (const family of ['accessoryInline', 'medium', 'small']) {
+    assert.ok(!(await run({ family, files })).widget.addAccessoryWidgetBackground, family);
+  }
+});

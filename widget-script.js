@@ -58,6 +58,11 @@ function buildWidget() {
   const w = new ListWidget();
   w.url = APP_URL;
   w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+  // Lock screen widgets get iOS's standard translucent gray backdrop, so the text stands out from the wallpaper.
+  // (iOS picks the exact look; widgets there can't use a custom background color.)
+  if (family === 'accessoryRectangular' || family === 'accessoryCircular') {
+    w.addAccessoryWidgetBackground = true;
+  }
 
   if (family === 'accessoryInline') {
     w.addText(fresh ? (goals.length ? counter + ' goals done' : 'No goals today') : 'Open Goals app');
