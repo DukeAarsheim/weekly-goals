@@ -79,16 +79,26 @@ function buildWidget() {
     return w;
   }
 
-  const max = compact ? 3 : 8;
-  goals.slice(0, max).forEach(function (g) {
+  // A second rectangular widget with the parameter 2 shows the next page of goals (4-6, and so on).
+  const perPage = compact ? 3 : 8;
+  const page = compact ? Math.max(1, parseInt(args.widgetParameter, 10) || 1) : 1;
+  const start = (page - 1) * perPage;
+  const shown = goals.slice(start, start + perPage);
+  if (!shown.length) {
+    const none = w.addText('Nothing more today');
+    none.font = Font.systemFont(11);
+    return w;
+  }
+  shown.forEach(function (g) {
     let line = (g.done ? '✓ ' : '○ ') + g.text;
     if (g.progress) line += ' ' + g.progress;
     const t = w.addText(line);
     t.font = Font.systemFont(compact ? 12 : 14);
     t.lineLimit = 1;
   });
-  if (goals.length > max) {
-    const more = w.addText('+' + (goals.length - max) + ' more');
+  const left = goals.length - (start + perPage);
+  if (left > 0) {
+    const more = w.addText('+' + left + ' more');
     more.font = Font.systemFont(compact ? 11 : 13);
   }
   return w;
