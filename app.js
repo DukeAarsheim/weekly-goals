@@ -5,6 +5,8 @@ import {
   normalizeDays, goalsOnDay, unscheduledGoals, scheduleDay, unscheduleDay, tickDay, saveLayoutToTemplate,
 } from './goals.js';
 import { load, save, exportJSON, importJSON, STORAGE_KEY, BACKUP_KEY } from './storage.js';
+import { widgetPayload, scriptableUrl } from './widget.js';
+import { SCRIPTABLE_SCRIPT } from './widget-script.js';
 
 const $ = id => document.getElementById(id);
 
@@ -457,6 +459,37 @@ $('saveLayout').addEventListener('click', () => {
   }
   commit(saveLayoutToTemplate(state.data, state.key));
   $('layoutStatus').textContent = `Saved. New weeks will start with these days for your ${recurring} recurring goal${recurring === 1 ? '' : 's'}.`;
+});
+
+// ---------- lock screen widget (via the Scriptable app) ----------
+$('sendWidget').addEventListener('click', () => {
+  const now = new Date();
+  const key = weekKey(now); // always today's week, even if another week is open
+  const week = ensureWeek(state.data, key).weeks[key];
+  const payload = widgetPayload(week.goals, now);
+  const n = payload.goals.length;
+  $('widgetStatus').textContent = n
+    ? `Sending ${n} goal${n === 1 ? '' : 's'} planned for today…`
+    : 'Nothing is planned for today yet, so the widget will say so.';
+  const link = document.createElement('a');
+  link.href = scriptableUrl(payload);
+  document.body.append(link);
+  link.click();
+  link.remove();
+});
+
+$('copyScript').addEventListener('click', async () => {
+  const box = $('scriptBox');
+  try {
+    await navigator.clipboard.writeText(SCRIPTABLE_SCRIPT);
+    box.hidden = true;
+    $('widgetStatus').textContent = 'Copied. Now paste it into a new script in Scriptable.';
+  } catch {
+    box.value = SCRIPTABLE_SCRIPT;
+    box.hidden = false;
+    box.select();
+    $('widgetStatus').textContent = "Couldn't copy automatically. Select all the text below and copy it.";
+  }
 });
 
 // ---------- goal dialog ----------

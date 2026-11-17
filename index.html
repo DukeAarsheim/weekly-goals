@@ -46,6 +46,28 @@
     <button id="saveLayout" class="wide">Save as my default layout</button>
     <p id="layoutStatus" class="hint" role="status"></p>
     <p class="hint">Your saved layout is used for the days of your recurring goals in every new week. One-off goals aren't carried forward.</p>
+
+    <section class="widget-box">
+      <h2>Lock screen widget (iPhone)</h2>
+      <p class="hint">Show today's goals on your lock screen with the free Scriptable app. If nothing happens when you tap Send, check that Scriptable is installed.</p>
+      <div class="actions column">
+        <button id="sendWidget" class="primary">Send today's goals to widget</button>
+        <button id="copyScript">Copy widget script</button>
+      </div>
+      <p id="widgetStatus" class="hint" role="status"></p>
+      <textarea id="scriptBox" class="script-box" rows="8" readonly hidden aria-label="Widget script"></textarea>
+      <details>
+        <summary>Setup steps</summary>
+        <ol>
+          <li>Install <strong>Scriptable</strong> from the App Store (it's free).</li>
+          <li>Tap <strong>Copy widget script</strong> above.</li>
+          <li>In Scriptable tap <strong>+</strong>, paste, then tap the title at the top and rename the script to exactly <strong>Goals Widget</strong>. Tap Done.</li>
+          <li>Come back here and tap <strong>Send today's goals to widget</strong>. Tap Open when asked, tap OK on the message, then use the back link at the top left to return.</li>
+          <li>On your lock screen, press and hold, tap Customize, choose Lock Screen, tap the widget row and add <strong>Scriptable</strong>. Tap the new widget and set Script to <strong>Goals Widget</strong>.</li>
+          <li>Tap Send again each morning, and after you change the plan. The widget only updates when you send.</li>
+        </ol>
+      </details>
+    </section>
   </main>
 
   <main id="templateView" hidden>

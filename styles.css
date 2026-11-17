@@ -85,6 +85,14 @@ button:disabled { opacity: .4; cursor: default; }
 .unscheduled h2 { font-size: 1rem; margin: 16px 0 4px; }
 .unscheduled p { margin: 0; color: var(--muted); }
 
+.widget-box { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); }
+.widget-box h2 { font-size: 1rem; margin: 0 0 4px; }
+.widget-box details { margin-top: 8px; }
+.widget-box summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.widget-box ol { padding-left: 1.3em; margin: 6px 0; }
+.widget-box li { margin-bottom: 6px; }
+.script-box { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .75rem; }
+
 /* Day picker chips (recurring goal dialog) and the "add to day" checklist */
 .days-field { border: 0; padding: 0; margin: 0 0 12px; }
 .days-field legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
